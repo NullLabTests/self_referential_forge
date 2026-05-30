@@ -11,3 +11,5 @@ build/
 .venv/
 venv/
 .DS_Store
+safety/audit/
+archive/backups/
