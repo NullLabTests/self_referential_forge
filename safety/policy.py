@@ -54,6 +54,7 @@ class MutationPolicy:
         "add_parameter": SafetyTier.DRY_RUN,
         "swap_condition": SafetyTier.DRY_RUN,
         "duplicate_component": SafetyTier.DRY_RUN,
+        "cross_file_recombine": SafetyTier.DRY_RUN,
     })
 
     ast_blocklist: set[str] = field(default_factory=lambda: {

@@ -122,7 +122,7 @@ class SelfReferentialOrchestrator:
         while self.running and (cycles < 0 or cycle_count < cycles):
             cycle_start = time.time()
 
-            target_path = self.self_modifier.select_target(risk_max="low")
+            target_path = self.self_modifier.select_target(risk_max="low", generation=self.generation)
             champion = self._select_champion()
             component = await self._mutate_component(target_path, champion)
             if component is None:
@@ -235,20 +235,51 @@ class SelfReferentialOrchestrator:
         """
         operator = self.meta_evolver.select_operator()
 
+        if parent is not None:
+            expected_type = target_path.replace(".py", "").replace("/", "_")
+            parent_core = parent.component_type.replace("_mutated", "")
+            if parent_core != expected_type:
+                logger.info("Target changed from %s to %s — re-baselining", parent_core, expected_type)
+                parent = None
+
         for attempt in range(self.config.max_mutation_attempts):
             try:
                 if parent is None:
                     source = await self.self_modifier.read_file(target_path)
                     component_type = target_path.replace(".py", "").replace("/", "_")
                 else:
-                    result = await self.self_modifier.mutate(
-                        source=parent.source,
-                        operator=operator,
-                        component_type=parent.component_type,
-                    )
-                    source = result["source"]
-                    component_type = result["component_type"]
-                    operator = result.get("operator", operator)
+                    if operator == "cross_file_recombine":
+                        targets = [f["path"] for f in self.self_modifier.MUTATABLE_FILES if f["path"] != target_path]
+                        if targets:
+                            donor_path = random.choice(targets)
+                            source_a = parent.source
+                            source_b = await self.self_modifier.read_file(donor_path)
+                            result = await self.self_modifier.mutate_cross_file(
+                                source_a=source_a,
+                                source_b=source_b,
+                                operator=operator,
+                                component_type=parent.component_type,
+                            )
+                            source = result["source"]
+                            component_type = result["component_type"]
+                        else:
+                            logger.warning("No donor file available for cross_file_recombine — falling back to single-file mutate")
+                            result = await self.self_modifier.mutate(
+                                source=parent.source,
+                                operator=operator,
+                                component_type=parent.component_type,
+                            )
+                            source = result["source"]
+                            component_type = result["component_type"]
+                    else:
+                        result = await self.self_modifier.mutate(
+                            source=parent.source,
+                            operator=operator,
+                            component_type=parent.component_type,
+                        )
+                        source = result["source"]
+                        component_type = result["component_type"]
+                        operator = result.get("operator", operator)
 
                 if self.safety is not None:
                     safety_result = await self.safety.check_mutation(

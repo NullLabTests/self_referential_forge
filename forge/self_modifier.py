@@ -26,6 +26,7 @@ ALL_OPERATORS: tuple[str, ...] = (
     "insert_code", "rewrite_function", "add_parameter",
     "swap_condition", "duplicate_component",
     "evolve_operator", "recombine_modules",
+    "transplant_function",
 )
 
 CONSTRUCTIVE_OPERATORS: tuple[str, ...] = (
@@ -49,8 +50,7 @@ OPERATOR_DESCRIPTIONS: dict[str, str] = {
     "add_parameter": "Add an optional None parameter to a function",
     "swap_condition": "Negate a random if-condition",
     "duplicate_component": "Deep-copy a random top-level class or function",
-    "evolve_operator": "Wrap an existing operator in a novel structural pattern",
-    "recombine_modules": "Splice two function bodies together (cross-module crossover)",
+    "cross_file_recombine": "Transplant a function from one file into another",
 }
 
 
@@ -68,6 +68,7 @@ class SelfModifier:
         {"path": "benchmarks/benchmark_suite.py", "risk": "low", "module": "benchmarks.benchmark_suite"},
         {"path": "forge/self_writer.py", "risk": "medium", "module": "forge.self_writer"},
         {"path": "forge/self_modifier.py", "risk": "high", "module": "forge.self_modifier"},
+        {"path": "forge/orchestrator.py", "risk": "high", "module": "forge.orchestrator"},
         {"path": "meta_evolution/meta_evolver.py", "risk": "medium", "module": "meta_evolution.meta_evolver"},
         {"path": "evaluators/evaluator.py", "risk": "high", "module": "evaluators.evaluator"},
         {"path": "archive/archivist.py", "risk": "low", "module": "archive.archivist"},
@@ -77,16 +78,31 @@ class SelfModifier:
         self.forge_root = forge_root or Path(__file__).resolve().parent.parent
         self._loaded_sources: dict[str, str] = {}
 
-    def select_target(self, risk_max: str = "low") -> str:
+    def select_target(self, risk_max: str = "low", generation: int = 0) -> str:
         """Select a mutable file target filtered by risk level.
+
+        Risk escalates with generation count: low-risk at gen < 5,
+        medium at gen < 20, high thereafter.  This prevents the forge
+        from dangerous self-modifications before it has proven
+        evolutionary fitness.
 
         Args:
             risk_max: Maximum risk level — 'low', 'medium', or 'high'.
+                Overrides generation-based escalation when explicitly set.
+            generation: Current evolution generation. Higher values
+                unlock riskier targets.
 
         Returns:
             Relative path string like 'benchmarks/benchmark_runner.py'.
         """
         risk_order = {"low": 0, "medium": 1, "high": 2}
+
+        if risk_max == "low":
+            if generation >= 20:
+                risk_max = "high"
+            elif generation >= 5:
+                risk_max = "medium"
+
         max_level = risk_order.get(risk_max, 0)
         candidates = [
             f for f in self.MUTATABLE_FILES
@@ -94,7 +110,7 @@ class SelfModifier:
         ]
         if not candidates:
             candidates = [self.MUTATABLE_FILES[0]]
-        return candidates[0]["path"]
+        return random.choice(candidates)["path"]
 
     async def read_file(self, relative_path: str) -> str:
         """Read a single forge source file.
@@ -173,6 +189,7 @@ class SelfModifier:
             "duplicate_component": self._duplicate_component,
             "evolve_operator": self._evolve_operator,
             "recombine_modules": self._recombine_modules,
+            "transplant_function": self._transplant_function,
         }
 
         operator = operator or random.choice(ALL_OPERATORS)
@@ -509,6 +526,64 @@ class SelfModifier:
         b.body = body_b[:split_point_b] + body_a[split_point_a:]
 
         return ast.unparse(tree)
+
+    def _cross_file_recombine(self, source_a: str, source_b: str) -> str:
+        """Cross-file recombination: transplant a function from source_b into source_a.
+
+        Picks a random function from source_b and inserts a deep copy
+        at the top of source_a. This is the forge's sexual reproduction
+        across individual files — genetic material flows between modules.
+
+        Returns the modified source_a with the transplanted function.
+        """
+        try:
+            tree_a = ast.parse(source_a)
+            tree_b = ast.parse(source_b)
+        except SyntaxError:
+            return source_a
+
+        donors = [
+            n for n in tree_b.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        ]
+        if not donors:
+            return source_a
+
+        donor = copy.deepcopy(random.choice(donors))
+        if isinstance(donor, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            donor.name = donor.name + "_x"
+
+        insert_pos = 0
+        for i, stmt in enumerate(tree_a.body):
+            if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+                insert_pos = i + 1
+            elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, (ast.Constant, ast.Str)):
+                insert_pos = i + 1
+            else:
+                break
+
+        tree_a.body.insert(insert_pos, donor)
+        return ast.unparse(tree_a)
+
+    async def mutate_cross_file(
+        self,
+        source_a: str,
+        source_b: str,
+        operator: str | None = None,
+        component_type: str = "component",
+    ) -> dict[str, Any]:
+        """Apply a cross-file mutation operator requiring two sources."""
+        if operator == "cross_file_recombine":
+            new_source = self._cross_file_recombine(source_a, source_b)
+        else:
+            new_source = source_a
+
+        return {
+            "source": new_source,
+            "component_type": f"{component_type}_mutated",
+            "operator": operator or "cross_file_recombine",
+            "operator_desc": "Cross-file function transplant",
+        }
 
     @staticmethod
     def _wrap_in_for_loop(base: ast.FunctionDef, new_name: str) -> ast.FunctionDef:
