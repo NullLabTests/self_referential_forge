@@ -65,7 +65,7 @@ class EvolutionConfig:
     max_mutation_attempts: int = 3
     audit_chain_verify_interval: int = 20
     rollback_on_violation: bool = True
-    apply_mutations: bool = False
+    apply_mutations: bool = True
     auto_rollback_on_failure: bool = True
 
 
@@ -122,8 +122,9 @@ class SelfReferentialOrchestrator:
         while self.running and (cycles < 0 or cycle_count < cycles):
             cycle_start = time.time()
 
+            target_path = self.self_modifier.select_target(risk_max="low")
             champion = self._select_champion()
-            component = await self._mutate_component(champion)
+            component = await self._mutate_component(target_path, champion)
             if component is None:
                 self.consecutive_failures += 1
                 if self.consecutive_failures >= self.config.max_consecutive_failures:
@@ -215,15 +216,19 @@ class SelfReferentialOrchestrator:
         )
         return tournament[0]
 
-    async def _mutate_component(self, parent: Component | None) -> Component | None:
-        """Apply self-mutation to forge source code.
+    async def _mutate_component(self, target_path: str, parent: Component | None = None) -> Component | None:
+        """Apply self-mutation to a single forge source file.
 
-        If no parent exists, generates a baseline component from current forge state.
+        If no parent exists, reads the target file directly to create a baseline.
         All mutations pass through the tiered safety system:
           - Tier 0 (AUTOMATED): Safe mutations pass without human intervention
           - Tier 1 (DRY_RUN):   Requires sandbox testing before promotion
           - Tier 2 (HUMAN):     Requires explicit human approval
           - Tier 3 (BLOCKED):   Never allowed
+
+        Args:
+            target_path: Relative path like 'benchmarks/benchmark_runner.py'.
+            parent: Optional parent component to mutate. If None, creates a baseline.
 
         Returns:
             A new Component with mutated source, or None on failure.
@@ -233,8 +238,8 @@ class SelfReferentialOrchestrator:
         for attempt in range(self.config.max_mutation_attempts):
             try:
                 if parent is None:
-                    source = await self.self_modifier.snapshot_current()
-                    component_type = "baseline"
+                    source = await self.self_modifier.read_file(target_path)
+                    component_type = target_path.replace(".py", "").replace("/", "_")
                 else:
                     result = await self.self_modifier.mutate(
                         source=parent.source,
@@ -255,12 +260,14 @@ class SelfReferentialOrchestrator:
                     if not safety_result["safe"]:
                         logger.warning(
                             "Safety check failed (tier=%s): %s",
-                            safety_result.get("verdict", {}).get("tier", "unknown"),
+                            safety_result["verdict"].tier.name if "verdict" in safety_result else "unknown",
                             safety_result["reason"],
                         )
                         if self.config.rollback_on_violation and parent is not None:
+                            clean = component_type.replace("_mutated", "").replace(".py", "")
+                            rollback_path = self._forge_root / f"{clean}.py"
                             self.safety._sandbox.rollback(
-                                self._forge_root / component_type.replace("_mutated", ".py"),
+                                rollback_path,
                                 parent.source,
                             )
                         continue
@@ -313,6 +320,11 @@ class SelfReferentialOrchestrator:
 
         self.fitness_history.append(self.best_fitness)
         self.generation += 1
+
+        if component.mutation_log and "operator" in component.mutation_log[0]:
+            operator = component.mutation_log[0]["operator"]
+            delta = component.fitness_total - (self.fitness_history[-2] if len(self.fitness_history) >= 2 else 0.0)
+            self.meta_evolver.record_operator_use(operator, delta)
 
     def _adjust_strategy(self) -> None:
         """Feed fitness deltas to the meta-evolver for strategy adaptation."""

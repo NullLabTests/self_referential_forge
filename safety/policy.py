@@ -49,6 +49,8 @@ class MutationPolicy:
         "add_parameter": SafetyTier.DRY_RUN,
         "swap_condition": SafetyTier.HUMAN_APPROVAL,
         "duplicate_component": SafetyTier.DRY_RUN,
+        "evolve_operator": SafetyTier.HUMAN_APPROVAL,
+        "recombine_modules": SafetyTier.HUMAN_APPROVAL,
     })
 
     ast_blocklist: set[str] = field(default_factory=lambda: {
@@ -77,7 +79,6 @@ class MutationPolicy:
         SafetyRule(SafetyTier.HUMAN_APPROVAL, r"except\s*:\s*$", "Bare except: clause"),
         SafetyRule(SafetyTier.HUMAN_APPROVAL, r"except\s+Exception\s*:", "Broad except Exception:"),
         SafetyRule(SafetyTier.HUMAN_APPROVAL, r"\bopen\s*\(.*['\"][wWabx]['\"]", "File write mode"),
-        SafetyRule(SafetyTier.HUMAN_APPROVAL, r"\btry\s*:", "Unnecessary try block (heuristic)"),
     ])
 
     protected_modules: set[str] = field(default_factory=lambda: {

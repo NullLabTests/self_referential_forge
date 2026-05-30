@@ -151,7 +151,10 @@ class SafetyValidator:
             violations.append(f"Syntax error in mutated source: {exc}")
 
         # 2. Path validation
-        component_path = self._forge_root / component_type.replace(".", "/").replace("_mutated", ".py")
+        clean = component_type.replace(".", "/").replace("_mutated", "").split("?")[0]
+        if not clean.endswith(".py"):
+            clean += ".py"
+        component_path = self._forge_root / clean
         path_safe, path_reason = self._policy.check_path(component_path, self._forge_root)
         if not path_safe:
             violations.append(f"Path violation: {path_reason}")

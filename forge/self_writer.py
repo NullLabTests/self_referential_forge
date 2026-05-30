@@ -90,6 +90,7 @@ class SelfWriter:
         "archive_archivist": "archive/archivist.py",
         "dashboard_main": "dashboard/main.py",
         "benchmarks_benchmark_suite": "benchmarks/benchmark_suite.py",
+        "benchmarks_benchmark_runner": "benchmarks/benchmark_runner.py",
         "baseline": "",
     }
 

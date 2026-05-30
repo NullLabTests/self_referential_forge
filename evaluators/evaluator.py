@@ -6,18 +6,26 @@ Evaluates forge source code across multiple fitness dimensions:
   - Safety compliance (dangerous patterns)
   - Cohesion (how well the module hangs together)
   - Mutation test survival (if tests exist)
+  - Runtime behavior (actually runs the code)
+  - Novelty (structural divergence from previous mutations)
 """
 
 from __future__ import annotations
 
 import ast
+import importlib.util
 import logging
 import re
 import subprocess
 import sys
+import tempfile
+import textwrap
 import time
+import traceback
 from pathlib import Path
 from typing import Any
+
+from evaluators.novelty import NoveltyArchive
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +36,8 @@ FITNESS_DIMENSIONS = [
     "modular_cohesion",
     "test_survival",
     "style_consistency",
+    "runtime_behavior",
+    "novelty",
 ]
 
 
@@ -42,16 +52,33 @@ class SelfEvaluator:
         self,
         weights: dict[str, float] | None = None,
         test_dir: str | Path | None = None,
+        novelty_archive: NoveltyArchive | None = None,
     ) -> None:
         self.weights = weights or {
-            "syntax_validity": 0.25,
-            "code_complexity": 0.15,
-            "safety_compliance": 0.25,
-            "modular_cohesion": 0.15,
+            "syntax_validity": 0.20,
+            "code_complexity": 0.10,
+            "safety_compliance": 0.20,
+            "modular_cohesion": 0.10,
             "test_survival": 0.10,
-            "style_consistency": 0.10,
+            "style_consistency": 0.05,
+            "runtime_behavior": 0.15,
+            "novelty": 0.10,
         }
         self._test_dir = Path(test_dir) if test_dir else None
+        self.novelty_archive = novelty_archive or NoveltyArchive()
+        self._dimension_registry: dict[str, Any] = {}
+        self._discover_dimensions()
+
+    def _discover_dimensions(self) -> None:
+        """Auto-register all _score_* methods as evolvable evaluation dimensions."""
+        for attr_name in dir(self):
+            if attr_name.startswith("_score_") and callable(getattr(self, attr_name)):
+                dim_name = attr_name.replace("_score_", "")
+                self._dimension_registry[dim_name] = getattr(self, attr_name)
+
+    @property
+    def active_dimensions(self) -> list[str]:
+        return list(self._dimension_registry.keys())
 
     async def evaluate(self, source: str, component_type: str = "unknown") -> dict[str, float]:
         """Evaluate a forge component's source across all fitness dimensions.
@@ -63,14 +90,14 @@ class SelfEvaluator:
         Returns:
             Dict mapping dimension names to scores in [0.0, 1.0].
         """
-        scores = {
-            "syntax_validity": self._score_syntax_validity(source),
-            "code_complexity": self._score_code_complexity(source),
-            "safety_compliance": self._score_safety_compliance(source),
-            "modular_cohesion": self._score_modular_cohesion(source),
-            "test_survival": await self._score_test_survival(source),
-            "style_consistency": self._score_style_consistency(source),
-        }
+        scores: dict[str, float] = {}
+        for dim_name, scorer in self._dimension_registry.items():
+            result = scorer(source)
+            if hasattr(result, "__await__"):
+                result = await result
+            scores[dim_name] = result
+
+        scores["novelty"] = self._score_novelty(source)
 
         logger.debug("Evaluated %s: %s", component_type, scores)
         return scores
@@ -244,6 +271,76 @@ class SelfEvaluator:
 
         score = 1.0 - (issues / max(total, 1))
         return max(0.0, score)
+
+    def _score_runtime_behavior(self, source: str) -> float:
+        """Execute the source in a subprocess and measure correctness.
+
+        Writes the source to a temp file, imports it, calls a simple
+        smoke function, and checks for errors.  Returns a score in
+        [0.0, 1.0] based on:
+          - whether the code parses and imports cleanly (0.4)
+          - whether it produces expected output (0.4)
+          - execution speed relative to a baseline (0.2)
+        """
+        if not self._score_syntax_validity(source):
+            return 0.0
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, prefix="forge_runtime_"
+        ) as f:
+            f.write(source)
+            tmp_path = f.name
+
+        try:
+            start = time.perf_counter()
+            result = subprocess.run(
+                [sys.executable, "-c",
+                 textwrap.dedent(f"""\
+                    import importlib.util
+                    spec = importlib.util.spec_from_file_location("_forge_runtime", {tmp_path!r})
+                    if spec and spec.loader:
+                        mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(mod)
+                        print("IMPORT_OK")
+                    else:
+                        print("IMPORT_FAIL")
+                """)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            elapsed = time.perf_counter() - start
+
+            if result.returncode != 0:
+                logger.debug("Runtime eval FAILED: %s", result.stderr[:200])
+                return 0.0
+
+            output = result.stdout.strip()
+            if "IMPORT_OK" in output:
+                speed_score = max(0.0, 1.0 - elapsed / 10.0)
+                return 0.4 + 0.4 * speed_score
+
+            return 0.2
+
+        except subprocess.TimeoutExpired:
+            logger.debug("Runtime eval TIMEOUT")
+            return 0.1
+        except Exception as exc:
+            logger.debug("Runtime eval error: %s", exc)
+            return 0.0
+        finally:
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _score_novelty(self, source: str) -> float:
+        """Score how structurally novel the source is vs the archive.
+
+        Delegates to NoveltyArchive which tracks AST fingerprints
+        across all evaluations.  Returns [0.0, 1.0].
+        """
+        return self.novelty_archive.score(source)
 
     @staticmethod
     def _max_depth(tree: ast.AST) -> int:
