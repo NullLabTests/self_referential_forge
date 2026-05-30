@@ -1,0 +1,18 @@
+{
+  "blocked_nodes": ["Exec", "Eval"],
+  "suspicious_patterns": [
+    "os.system",
+    "subprocess.call",
+    "shutil.rmtree",
+    "pathlib.Path.unlink"
+  ],
+  "max_import_safety_score": 0.3,
+  "max_consecutive_failures": 5,
+  "allowed_mutation_operators": [
+    "insert_code",
+    "rewrite_function",
+    "add_parameter",
+    "swap_condition",
+    "duplicate_component"
+  ]
+}
