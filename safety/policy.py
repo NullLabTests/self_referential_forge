@@ -44,13 +44,16 @@ class MutationPolicy:
     """Complete safety policy governing which operator → tier mappings are allowed."""
 
     operator_tiers: dict[str, SafetyTier] = field(default_factory=lambda: {
+        "add_type_hints": SafetyTier.DRY_RUN,
+        "add_docstring": SafetyTier.DRY_RUN,
+        "extract_constant": SafetyTier.DRY_RUN,
+        "add_error_handling": SafetyTier.DRY_RUN,
+        "inline_return": SafetyTier.AUTOMATED,
         "insert_code": SafetyTier.AUTOMATED,
         "rewrite_function": SafetyTier.DRY_RUN,
         "add_parameter": SafetyTier.DRY_RUN,
-        "swap_condition": SafetyTier.HUMAN_APPROVAL,
+        "swap_condition": SafetyTier.DRY_RUN,
         "duplicate_component": SafetyTier.DRY_RUN,
-        "evolve_operator": SafetyTier.HUMAN_APPROVAL,
-        "recombine_modules": SafetyTier.HUMAN_APPROVAL,
     })
 
     ast_blocklist: set[str] = field(default_factory=lambda: {

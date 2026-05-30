@@ -228,6 +228,12 @@ class SelfWriter:
             logger.info("Wrote mutated source to %s (%d bytes)", file_path, len(source))
 
             module_name = self.resolve_module_name(file_path)
+            if module_name not in sys.modules:
+                import importlib
+                try:
+                    importlib.import_module(module_name)
+                except Exception as exc:
+                    logger.debug("Could not pre-import %s: %s", module_name, exc)
             module = self._reload_module(module_name)
             reloaded = module is not None
 
