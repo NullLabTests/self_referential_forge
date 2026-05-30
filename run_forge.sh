@@ -66,6 +66,7 @@ Options:
   --human-approval   Require manual approval per mutation
   --auto-commit      Auto-commit improvements to git
   --dashboard        Launch the real-time dashboard alongside the forge
+  --apply            Apply mutations to forge's own .py files (self-referential)
   --safety-off       Disable safety validation (NOT RECOMMENDED)
   --verbose          Enable debug logging
   --help             Show this help message and exit
@@ -89,6 +90,7 @@ parse_args() {
             --auto-commit) EXTRA_ARGS+=("--auto-commit"); shift ;;
             --dashboard) LAUNCH_DASHBOARD=1; shift ;;
             --safety-off) EXTRA_ARGS+=("--safety-off"); shift ;;
+            --apply) EXTRA_ARGS+=("--apply"); shift ;;
             --verbose) EXTRA_ARGS+=("--verbose"); shift ;;
             *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
         esac

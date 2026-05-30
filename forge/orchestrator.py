@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from forge.self_modifier import SelfModifier
+from forge.self_writer import SelfWriter, WriteResult
 from meta_evolution.meta_evolver import MetaEvolver
 from evaluators.evaluator import SelfEvaluator
 from archive.archivist import Archivist
@@ -64,6 +65,8 @@ class EvolutionConfig:
     max_mutation_attempts: int = 3
     audit_chain_verify_interval: int = 20
     rollback_on_violation: bool = True
+    apply_mutations: bool = False
+    auto_rollback_on_failure: bool = True
 
 
 class SelfReferentialOrchestrator:
@@ -78,6 +81,7 @@ class SelfReferentialOrchestrator:
         self,
         config: EvolutionConfig | None = None,
         self_modifier: SelfModifier | None = None,
+        self_writer: SelfWriter | None = None,
         evaluator: SelfEvaluator | None = None,
         meta_evolver: MetaEvolver | None = None,
         archivist: Archivist | None = None,
@@ -85,6 +89,7 @@ class SelfReferentialOrchestrator:
     ) -> None:
         self.config = config or EvolutionConfig()
         self.self_modifier = self_modifier or SelfModifier()
+        self.self_writer = self_writer or SelfWriter()
         self.evaluator = evaluator or SelfEvaluator()
         self.meta_evolver = meta_evolver or MetaEvolver()
         self.archivist = archivist or Archivist()
@@ -133,6 +138,18 @@ class SelfReferentialOrchestrator:
             if self.config.human_approval:
                 if not await self._request_human_approval(component, fitness):
                     logger.info("Human rejected component %s", component.id)
+                    continue
+
+            # ── Self-referential write-back ──────────────────────────
+            # Write the mutated source to the actual forge .py file and
+            # reload the module. This is what makes the loop truly
+            # self-referential — the forge modifies its own running code.
+            if self.config.apply_mutations and component.parent_id is not None:
+                write_ok = await self._apply_self_mutation(component)
+                if not write_ok:
+                    if self.config.auto_rollback_on_failure:
+                        logger.error("Self-modification failed — halting")
+                        break
                     continue
 
             self._update_population(component, fitness)
@@ -392,6 +409,57 @@ class SelfReferentialOrchestrator:
             "meta_state": self.meta_evolver.get_summary(),
             "timestamp": time.time(),
         }
+
+    async def _apply_self_mutation(self, component: Component) -> bool:
+        """Write a mutated component to disk and reload in the running process.
+
+        This is the core self-referential step: after a mutation is safety-
+        approved and fitness-evaluated, we write the new source to the
+        forge's own .py file and reload the module so subsequent evolution
+        cycles use the modified code.
+
+        Args:
+            component: The mutated component to apply.
+
+        Returns:
+            True if the write+reload+smoke-test succeeded.
+        """
+        original_source = component.mutation_log[0].get("_original_source", "") if component.mutation_log else ""
+
+        result: WriteResult = await self.self_writer.apply_mutation(
+            source=component.source,
+            component_type=component.component_type,
+            original_source=original_source,
+        )
+
+        if result.success:
+            logger.info(
+                "Self-mutation applied to disk: %s (module=%s, %.2fs)",
+                result.file_path.name,
+                result.module_name,
+                result.execution_time,
+            )
+            component.mutation_log.append({
+                "event": "self_write",
+                "file": str(result.file_path),
+                "module": result.module_name,
+                "smoke_test": result.smoke_test_passed,
+                "reloaded": result.reloaded,
+                "time": result.execution_time,
+            })
+            return True
+
+        logger.error(
+            "Self-mutation FAILED for %s: %s",
+            component.component_type,
+            result.error,
+        )
+
+        if self.config.auto_rollback_on_failure and result.backup_path:
+            rolled_back = self.self_writer.rollback(result.backup_path, result.file_path)
+            logger.info("Rollback %s for %s", "succeeded" if rolled_back else "FAILED", result.file_path)
+
+        return False
 
     def stop(self) -> None:
         """Gracefully stop the evolution loop."""

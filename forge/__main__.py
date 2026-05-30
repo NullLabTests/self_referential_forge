@@ -75,6 +75,10 @@ Examples:
         help="Auto-commit improvements to git",
     )
     parser.add_argument(
+        "--apply", action="store_true",
+        help="Apply mutations to forge's own source files (self-referential write-back)",
+    )
+    parser.add_argument(
         "--dashboard", action="store_true",
         help="Launch the real-time dashboard alongside the forge",
     )
@@ -134,6 +138,7 @@ def main() -> int:
         safety_enabled=not args.safety_off,
         human_approval=args.human_approval,
         auto_commit=args.auto_commit,
+        apply_mutations=args.apply,
         db_url=os.environ.get("FORGE_DB_URL", "sqlite:///self_referential_population.db"),
     )
 
