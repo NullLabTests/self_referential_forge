@@ -1,7 +1,7 @@
 {
-  "generation": 3,
-  "stagnation_counter": 1,
-  "fitness_history_length": 3,
+  "generation": 4,
+  "stagnation_counter": 2,
+  "fitness_history_length": 4,
   "novelty_boost_active": false,
   "novelty_cooldown": 0,
   "operators": {
@@ -12,7 +12,7 @@
       "avg_delta": -0.016292,
       "total_delta": -0.016292,
       "success_rate": 0.0,
-      "last_used_ago": 1.0
+      "last_used_ago": 1.4
     },
     "add_error_handling": {
       "weight": 1.0,
@@ -21,16 +21,16 @@
       "avg_delta": 0.004665,
       "total_delta": 0.00933,
       "success_rate": 0.5,
-      "last_used_ago": 0.4
+      "last_used_ago": 0.8
     },
     "add_parameter": {
       "weight": 1.0,
-      "uses": 0,
+      "uses": 1,
       "successes": 0,
-      "avg_delta": 0.0,
-      "total_delta": 0.0,
+      "avg_delta": -0.014867,
+      "total_delta": -0.014867,
       "success_rate": 0.0,
-      "last_used_ago": -1
+      "last_used_ago": 0.0
     },
     "add_type_hints": {
       "weight": 1.0,
@@ -84,7 +84,7 @@
       "avg_delta": -0.014961,
       "total_delta": -0.014961,
       "success_rate": 0.0,
-      "last_used_ago": 0.0
+      "last_used_ago": 0.5
     },
     "recombine_modules": {
       "weight": 1.0,
@@ -117,6 +117,7 @@
   "fitness_history": [
     0.0,
     0.004665154679987182,
+    0.0,
     0.0
   ]
 }

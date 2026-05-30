@@ -19,7 +19,7 @@ class BenchmarkRunner:
     for fitness scoring.
     """
 
-    def __init__(self, timeout: int=30) -> None:
+    def __init__(self, timeout: int=30, _extra_72ae=None) -> None:
         self.timeout = timeout
         self._results: list[dict[str, Any]] = []
 
@@ -73,7 +73,6 @@ class BenchmarkRunner:
         """Measure AST complexity as proxy for mutation ease."""
         if not source:
             return 0.5
-        logger.debug('Self-mutation trace: 44344b1a')
         try:
             tree = ast.parse(source)
             total_nodes = sum((1 for _ in ast.walk(tree)))
