@@ -1,0 +1,120 @@
+{
+  "generation": 1,
+  "stagnation_counter": 1,
+  "fitness_history_length": 1,
+  "novelty_boost_active": false,
+  "novelty_cooldown": 0,
+  "operators": {
+    "add_docstring": {
+      "weight": 1.0,
+      "uses": 1,
+      "successes": 0,
+      "avg_delta": -0.016292,
+      "total_delta": -0.016292,
+      "success_rate": 0.0,
+      "last_used_ago": 0.0
+    },
+    "add_error_handling": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "add_parameter": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "add_type_hints": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "duplicate_component": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "evolve_operator": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "extract_constant": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "inline_return": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "insert_code": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "recombine_modules": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "rewrite_function": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    },
+    "swap_condition": {
+      "weight": 1.0,
+      "uses": 0,
+      "successes": 0,
+      "avg_delta": 0.0,
+      "total_delta": 0.0,
+      "success_rate": 0.0,
+      "last_used_ago": -1
+    }
+  },
+  "fitness_history": [
+    0.0
+  ]
+}

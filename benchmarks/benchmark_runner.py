@@ -4,16 +4,12 @@ Executes a set of canned benchmarks to measure correctness, speed, and
 resource usage of mutated forge components. Each benchmark returns a
 score in [0.0, 1.0].
 """
-
 from __future__ import annotations
-
 import ast
 import logging
 import time
 from typing import Any
-
 logger = logging.getLogger(__name__)
-
 
 class BenchmarkRunner:
     """Executes internal benchmarks against forge components.
@@ -23,11 +19,12 @@ class BenchmarkRunner:
     for fitness scoring.
     """
 
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, timeout: int=30) -> None:
+        """"""
         self.timeout = timeout
         self._results: list[dict[str, Any]] = []
 
-    async def run_all(self, source: str = "") -> dict[str, float]:
+    async def run_all(self, source: str='') -> dict[str, float]:
         """Run the full benchmark suite against a source string.
 
         Args:
@@ -36,11 +33,7 @@ class BenchmarkRunner:
         Returns:
             Dict mapping benchmark names to scores [0.0, 1.0].
         """
-        return {
-            "syntax_parse": self._bench_syntax_parse(source),
-            "import_cycle": self._bench_import_cycle(source),
-            "ast_mutation_speed": self._bench_ast_mutation(source),
-        }
+        return {'syntax_parse': self._bench_syntax_parse(source), 'import_cycle': self._bench_import_cycle(source), 'ast_mutation_speed': self._bench_ast_mutation(source)}
 
     def _bench_syntax_parse(self, source: str) -> float:
         """Measure how quickly the source can be parsed.
@@ -69,13 +62,8 @@ class BenchmarkRunner:
             return 0.5
         try:
             tree = ast.parse(source)
-            imports = [
-                alias.name
-                for node in ast.walk(tree)
-                if isinstance(node, (ast.Import, ast.ImportFrom))
-                for alias in node.names
-            ]
-            self_references = [i for i in imports if "self" in i.lower() or "forge" in i.lower()]
+            imports = [alias.name for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names]
+            self_references = [i for i in imports if 'self' in i.lower() or 'forge' in i.lower()]
             if len(self_references) > 3:
                 return 0.3
             return 1.0
@@ -88,7 +76,7 @@ class BenchmarkRunner:
             return 0.5
         try:
             tree = ast.parse(source)
-            total_nodes = sum(1 for _ in ast.walk(tree))
+            total_nodes = sum((1 for _ in ast.walk(tree)))
             if 20 <= total_nodes <= 500:
                 return 1.0
             elif total_nodes > 500:
