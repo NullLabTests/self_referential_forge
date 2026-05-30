@@ -8,7 +8,7 @@ its own implementation at runtime.
 from __future__ import annotations
 
 import ast
-import inspect
+import copy
 import logging
 import random
 import textwrap
@@ -132,7 +132,7 @@ class SelfModifier:
         return ast.unparse(tree)
 
     def _duplicate_component(self, source: str) -> str:
-        """Duplicate a random top-level class or function."""
+        """Duplicate a random top-level class or function via deep copy."""
         tree = ast.parse(source)
         candidates = [
             n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
@@ -141,14 +141,8 @@ class SelfModifier:
             return source
 
         chosen = random.choice(candidates)
-        clone = ast.copy_location(
-            ast.parse(
-                textwrap.dedent(inspect.getsource(type(chosen))).format(
-                    name=chosen.name + "_copy"
-                )
-                or "pass"
-            ).body[0],
-            chosen,
-        )
+        clone: ast.AST = copy.deepcopy(chosen)
+        if isinstance(clone, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            clone.name = clone.name + "_copy"
         tree.body.insert(tree.body.index(chosen) + 1, clone)
         return ast.unparse(tree)

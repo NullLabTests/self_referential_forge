@@ -23,7 +23,7 @@ from forge.self_modifier import SelfModifier
 from meta_evolution.meta_evolver import MetaEvolver
 from evaluators.evaluator import SelfEvaluator
 from archive.archivist import Archivist
-from safety.safety_validator import SafetyValidator
+from safety import SafetyValidator, SafetyTier
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,8 @@ class EvolutionConfig:
     auto_commit: bool = False
     human_approval: bool = False
     max_mutation_attempts: int = 3
+    audit_chain_verify_interval: int = 20
+    rollback_on_violation: bool = True
 
 
 class SelfReferentialOrchestrator:
@@ -156,6 +158,11 @@ class SelfReferentialOrchestrator:
                 logger.info("Convergence detected — injecting novelty")
                 self.meta_evolver.trigger_novelty_boost()
 
+            if self.safety and cycle_count > 0 and cycle_count % self.config.audit_chain_verify_interval == 0:
+                chain_ok, issues = self.safety.verify_audit_chain()
+                if not chain_ok:
+                    logger.error("Audit chain integrity violation detected! Issues: %s", issues)
+
         self.running = False
         total_delta = self.fitness_history[-1] - self.fitness_history[0] if len(self.fitness_history) >= 2 else 0.0
         logger.info(
@@ -195,6 +202,11 @@ class SelfReferentialOrchestrator:
         """Apply self-mutation to forge source code.
 
         If no parent exists, generates a baseline component from current forge state.
+        All mutations pass through the tiered safety system:
+          - Tier 0 (AUTOMATED): Safe mutations pass without human intervention
+          - Tier 1 (DRY_RUN):   Requires sandbox testing before promotion
+          - Tier 2 (HUMAN):     Requires explicit human approval
+          - Tier 3 (BLOCKED):   Never allowed
 
         Returns:
             A new Component with mutated source, or None on failure.
@@ -217,10 +229,37 @@ class SelfReferentialOrchestrator:
                     operator = result.get("operator", operator)
 
                 if self.safety is not None:
-                    safety_result = self.safety.check_mutation(source, component_type)
+                    safety_result = await self.safety.check_mutation(
+                        source=source,
+                        component_type=component_type,
+                        operator=operator,
+                        source_before=parent.source if parent else source,
+                    )
                     if not safety_result["safe"]:
-                        logger.warning("Safety check failed: %s", safety_result["reason"])
+                        logger.warning(
+                            "Safety check failed (tier=%s): %s",
+                            safety_result.get("verdict", {}).get("tier", "unknown"),
+                            safety_result["reason"],
+                        )
+                        if self.config.rollback_on_violation and parent is not None:
+                            self.safety._sandbox.rollback(
+                                self._forge_root / component_type.replace("_mutated", ".py"),
+                                parent.source,
+                            )
                         continue
+
+                    tier = safety_result["verdict"].tier
+                    if tier >= SafetyTier.HUMAN_APPROVAL or self.config.human_approval:
+                        approved = await self._request_human_approval_raw(
+                            mutation_id=safety_result["verdict"].mutation_id,
+                            component_type=component_type,
+                            operator=operator,
+                            tier=tier.name,
+                            violations=safety_result["violations"],
+                        )
+                        if not approved:
+                            logger.info("Human rejected mutation %s", safety_result["verdict"].mutation_id)
+                            continue
 
                 return Component(
                     id=f"{component_type}-gen{self.generation}-{int(time.time())}",
@@ -272,7 +311,7 @@ class SelfReferentialOrchestrator:
         return max(recent) - min(recent) < self.config.convergence_threshold
 
     async def _request_human_approval(self, component: Component, fitness: dict[str, float]) -> bool:
-        """Request human approval before accepting a mutation."""
+        """Request human approval before accepting a mutation (legacy)."""
         logger.info(
             "Human approval required for %s (fitness: %.4f). Approve? [y/N]",
             component.id,
@@ -281,6 +320,41 @@ class SelfReferentialOrchestrator:
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, input, "> ")
         return response.strip().lower() in ("y", "yes")
+
+    async def _request_human_approval_raw(
+        self,
+        mutation_id: str,
+        component_type: str,
+        operator: str,
+        tier: str,
+        violations: list[str],
+    ) -> bool:
+        """Request human approval for a tier-2 mutation.
+
+        Args:
+            mutation_id: Unique mutation identifier.
+            component_type: Type of component being mutated.
+            operator: Mutation operator being applied.
+            tier: Safety tier label.
+            violations: Safety violations detected.
+
+        Returns:
+            True if human approved, False if rejected.
+        """
+        print("\n" + "=" * 60)
+        print(f"  HUMAN APPROVAL REQUIRED — Tier: {tier}")
+        print(f"  Mutation:    {mutation_id}")
+        print(f"  Component:   {component_type}")
+        print(f"  Operator:    {operator}")
+        if violations:
+            print(f"  Violations:  {'; '.join(violations)}")
+        print("=" * 60)
+        print("  Approve this self-modification? [y/N] ", end="", flush=True)
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, input, "")
+        approved = response.strip().lower() in ("y", "yes")
+        print()
+        return approved
 
     async def _auto_commit(self, component: Component) -> None:
         """Auto-commit the improved component to git."""

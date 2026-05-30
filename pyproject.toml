@@ -1,19 +1,52 @@
 [project]
 name = "self-referential-forge"
 version = "0.1.0"
-description = "Darwin-style self-referential evolutionary forge that evolves its own mutation operators, evaluators, and components."
+description = "Darwin-style self-referential evolutionary forge that evolves its own mutation operators, evaluators, and components through self-modification."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "NullLabTests" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
 dependencies = [
-    "sqlalchemy>=2.0",
-    "alembic",
-    "docker>=7.0",
     "fastapi>=0.110",
-    "uvicorn[standard]",
-    "python-dotenv",
-    "rich>=13",
-    "pydantic>=2.0",
+    "uvicorn[standard]>=0.29",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4.0",
+]
+dashboard = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["forge*", "meta_evolution*", "evaluators*", "archive*", "benchmarks*", "safety*", "dashboard*", "self_modification*"]
+exclude = ["__pycache__*", "*.git*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]

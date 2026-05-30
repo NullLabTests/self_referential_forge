@@ -1,5 +1,9 @@
-"""Internal benchmark suite for self-referential forge fitness evaluation."""
+"""Benchmarks — internal evolution quality benchmarks.
 
-from benchmarks.benchmark_runner import BenchmarkRunner
+Evaluates the forge's own performance: fitness improvement rate,
+operator diversity, convergence resilience, and mutation quality.
+"""
 
-__all__ = ["BenchmarkRunner"]
+from benchmarks.benchmark_suite import BenchmarkSuite, BenchmarkResult
+
+__all__ = ["BenchmarkSuite", "BenchmarkResult"]
