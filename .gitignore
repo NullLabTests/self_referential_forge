@@ -1,15 +1,23 @@
+# Byte-compiled
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Env
 .env
-*.db
-archive/snapshots/
+.venv
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
 dist/
 build/
 *.egg-info/
-.venv/
-venv/
-.DS_Store
-safety/audit/
-archive/backups/
